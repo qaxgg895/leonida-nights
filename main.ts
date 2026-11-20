@@ -69,9 +69,8 @@ function assertSelfContained(gameDir: string): void {
       if (entry.isDirectory()) {
         walk(full);
       } else if (/\.(html|js|css|json)$/.test(entry.name)) {
-        // Comments and message strings may cite a URL (three.js does, in its
-        // header and in warning text); only live loads count, so strip
-        // comments and look for actual fetch/import/src patterns.
+        // Comments may cite a URL; only live loads count, so strip comments
+        // and look for actual fetch/import/src patterns.
         const text = readFileSync(full, 'utf8')
           .replace(/\/\*[\s\S]*?\*\//g, '')
           .replace(/(^|[^:])\/\/.*$/gm, '$1');
