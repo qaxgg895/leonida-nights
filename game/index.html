@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leonida Nights — an open-world crime game</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e1a;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #f2f4f8; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .panel { background: rgba(8, 10, 20, 0.62); border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(2px); }
+  #topleft { position: absolute; top: 12px; left: 12px; min-width: 210px; }
+  #money { font-size: 22px; font-weight: 800; color: #7dff9b; letter-spacing: 0.5px; }
+  #healthbar { height: 10px; background: #333; border-radius: 5px; margin-top: 6px; overflow: hidden; }
+  #healthfill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff5a5a, #ff9a3d); }
+  #wanted { font-size: 22px; letter-spacing: 3px; margin-top: 5px; color: #ffd23d; text-shadow: 0 0 8px rgba(0,0,0,0.8); }
+  #wanted .off { color: rgba(255,255,255,0.25); text-shadow: none; }
+  #topright { position: absolute; top: 12px; right: 12px; text-align: right; }
+  #clock { font-size: 20px; font-weight: 700; }
+  #speed { font-size: 15px; color: #cfe3ff; margin-top: 2px; }
+  #minimap { margin-top: 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: #10131f; }
+  #objective { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%);
+    font-size: 17px; font-weight: 600; text-align: center; max-width: 640px; }
+  #objective small { display: block; font-size: 12px; color: #ffb3c1; letter-spacing: 2px; font-weight: 700; }
+  #banner { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%) scale(0.9);
+    font-size: 44px; font-weight: 900; letter-spacing: 4px; color: #ffd23d; opacity: 0;
+    text-shadow: 0 3px 0 #7a2d00, 0 0 26px rgba(255, 180, 0, 0.7); transition: opacity .25s, transform .25s;
+    text-align: center; white-space: nowrap; }
+  #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #banner small { display: block; font-size: 18px; letter-spacing: 2px; color: #fff; text-shadow: 0 2px 8px #000; }
+  #hint { position: absolute; left: 12px; bottom: 12px; font-size: 13px; color: #d7deea;
+    background: rgba(8,10,20,0.55); padding: 7px 10px; border-radius: 8px; line-height: 1.5; }
+  #toast { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%);
+    font-size: 15px; font-weight: 600; color: #ffe9a8; text-shadow: 0 1px 4px #000; }
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, rgba(20,8,40,0.88), rgba(8,10,26,0.92)); }
+  .card { max-width: 620px; padding: 34px 40px; text-align: center; }
+  .card h1 { margin: 0; font-size: 56px; letter-spacing: 6px; color: #ff5fa2;
+    text-shadow: 0 0 24px rgba(255, 95, 162, 0.55), 0 3px 0 #3d0b26; }
+  .card h1 span { color: #ffd23d; }
+  .card h2 { margin: 6px 0 0; font-size: 15px; letter-spacing: 5px; color: #9fd8ff; font-weight: 600; }
+  .card p { font-size: 15px; line-height: 1.6; color: #e6eaf2; text-align: left; }
+  .card .controls { font-size: 13.5px; line-height: 1.9; color: #c8d2e4; text-align: left;
+    background: rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+  .card button { pointer-events: auto; cursor: pointer; font-size: 19px; font-weight: 800; letter-spacing: 2px;
+    color: #1a0b12; background: linear-gradient(180deg, #ffd23d, #ff9a3d); border: 0; border-radius: 10px;
+    padding: 13px 34px; margin-top: 8px; }
+  .card button:hover { filter: brightness(1.1); }
+  .card .fine { font-size: 12px; color: #8b93a7; text-align: center; }
+  .hidden { display: none !important; }
+  #err { position: fixed; left: 8px; top: 8px; z-index: 50; color: #ffb3b3; font: 12px monospace;
+    background: rgba(0,0,0,0.7); padding: 6px; max-width: 60vw; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Leonida Nights: an open-world crime game. Drive, walk, steal cars, run missions, lose the cops."></canvas>
+<div id="hud" class="hidden">
+  <div id="topleft" class="panel">
+    <div id="money">$0</div>
+    <div id="healthbar"><div id="healthfill"></div></div>
+    <div id="wanted"></div>
+  </div>
+  <div id="topright" class="panel">
+    <div id="clock">17:40</div>
+    <div id="speed">0 mph &middot; on foot</div>
+    <canvas id="minimap" width="180" height="180"></canvas>
+  </div>
+  <div id="objective"><small id="objtag">MISSION 1 &middot; THE CALL</small><span id="objtext"></span></div>
+  <div id="banner"></div>
+  <div id="toast"></div>
+  <div id="hint">WASD drive / walk &middot; E steal &amp; enter car &middot; Click punch / shoot &middot; Shift run &middot; Space handbrake &middot; P pause &middot; M mute</div>
+</div>
+
+<div id="start" class="overlay">
+  <div class="card">
+    <h1>LEONIDA <span>NIGHTS</span></h1>
+    <h2>AN OPEN-WORLD CRIME STORY &middot; VICE SHORES</h2>
+    <p>Sun's going down over Vice Shores and your crew owes the wrong people
+    $40,000. One night, four jobs: meet the fixer, steal the getaway car,
+    lose the cops, and deliver the package — or the city keeps you.</p>
+    <div class="controls">
+      <b>W A S D</b> — walk / drive &nbsp;&middot;&nbsp; <b>Shift</b> — run<br>
+      <b>E</b> — steal / enter / exit a car &nbsp;&middot;&nbsp; <b>Click</b> — punch or shoot<br>
+      <b>Space</b> — handbrake &nbsp;&middot;&nbsp; <b>P</b> — pause &nbsp;&middot;&nbsp; <b>M</b> — mute<br>
+      Drag the mouse to look around. Stealing cars, hitting people and shooting raise your wanted level.
+    </div>
+    <button id="playBtn">START THE NIGHT</button>
+    <p class="fine" id="saveNote"></p>
+    <p class="fine">A wholly original game. No Rockstar content, names, art or audio. Best in desktop Chrome.</p>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="card">
+    <h1 style="font-size:40px">PAUSED</h1>
+    <p style="text-align:center">The city waits for no one — except right now.</p>
+    <button id="resumeBtn">RESUME</button>
+    <p class="fine">Progress saves automatically to this browser.</p>
+  </div>
+</div>
+
+<div id="busted" class="overlay hidden">
+  <div class="card">
+    <h1 style="font-size:44px">WASTED</h1>
+    <p style="text-align:center" id="bustedText">The night got the better of you. You wake up at the hospital, wallet lighter, pride intact.</p>
+    <button id="retryBtn">BACK ON THE STREETS</button>
+  </div>
+</div>
+
+<div id="err" class="hidden"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
